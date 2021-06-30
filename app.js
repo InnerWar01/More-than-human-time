@@ -1,145 +1,194 @@
 var currentPort = null;
+var nbTextNodes = 0;
+var nodeNb = [];
 
 // Port connection
 chrome.runtime.onConnect.addListener(function(port) {
-    if (port.name == "soil_has_moisture") {
-      port.onMessage.addListener(function(msg) {
-        replaceImage("soil-moisture.jpg");
-        replaceText(document.body, msg.data);
-        currentPort = port;
-      });
-    } else if (port.name == "soil_does_not_have_moisture") {
-      port.onMessage.addListener(function(msg) {
-        replaceImage("soil-without-moisture.jpg");
-        replaceText(document.body, msg.data);
-        currentPort = port;
-      });
-    } else if (port.name == "high_humidity") { // maybe have the filter blur is better instead of background image
-      port.onMessage.addListener(function(msg) {
-        currentPort = port;
-        var divIMG = document.createElement('div');
-        divIMG.id = "highHumidity";
-        divIMG.className = "humidity";
-        var img = document.createElement('img');
-        img.className = "humidity";
-        img.alt = "High Humidity";
-        img.src = chrome.runtime.getURL('images/high-humidity.jpg');
-        document.body.appendChild(divIMG);
-        divIMG.appendChild(img);
-        var opacity = 100 - msg.data; // (max value of opacity for high humidity = 50%) + (min value of high humidity = 50%) - (value of the sensor read)
+    // if (port.name == "soil_has_moisture") {
+    //   port.onMessage.addListener(function(msg) {
+    //     replaceImage("soil-moisture.jpg");
+    //     replaceText(document.body, msg.data);
+    //     currentPort = port;
+    //   });
+    // } else if (port.name == "soil_does_not_have_moisture") {
+    //   port.onMessage.addListener(function(msg) {
+    //     replaceImage("soil-without-moisture.jpg");
+    //     replaceText(document.body, msg.data);
+    //     currentPort = port;
+    //   });
+    // } 
 
-        var css = `
-          #highHumidity {
-            position: fixed; 
-            top: -50%; 
-            left: -50%; 
-            width: 200%; 
-            height: 200%;
-          }
-          #highHumidity img {
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            right: 0; 
-            bottom: 0; 
-            margin: auto; 
-            width: 50%;
-            opacity: ${opacity}%; /* opacity set depending on the level of humidity, the less humidity the less transparent*/
-          }
-        `;
-        // create the style element
-        var styleElement = document.createElement('style');
+    // document.addEventListener('visibilitychange', function() {
+    //   alert("You can't leave");
+    //   document.title = document.visibilityState;
+    //   console.log(document.visibilityState);
+    // });
 
-        // add style rules to the style element
-        styleElement.appendChild(document.createTextNode(css));
+  // window.onblur = function() {
+  //   var flag = confirm("Please don't leave!  Click OK if you really want to leave.  I hope you click cancel and stay with me.");
+  //   if (flag) {
+  //       window.onblur = undefined;
+  //       alert("Ok you can leave now.  **sob**");
+  //       //The user is leaving.  You can do a little cleanup here if you need to.
+  //   }
+  // }
 
-        // attach the style element to the document head
-        document.getElementsByTagName('head')[0].appendChild(styleElement);
-      });
-    } else if (port.name == "low_humidity") {
-      port.onMessage.addListener(function(msg) {
-        currentPort = port;
-        var divIMG = document.createElement('div');
-        divIMG.id = "lowHumidity";
-        divIMG.className = "humidity";
-        var img = document.createElement('img');
-        img.className = "humidity";
-        img.alt = "Low Humidity";
-        img.src = chrome.runtime.getURL('images/low-humidity.jpg');
-        document.body.appendChild(divIMG);
-        divIMG.appendChild(img);
-        var opacity = 100 - msg.data; // (min value of opacity for low humidity = 51%) + (max value of low humidity = 49%) - (value of the sensor read)
-
-        var css = `
-          #lowHumidity {
-            position: fixed; 
-            top: -50%; 
-            left: -50%; 
-            width: 200%; 
-            height: 200%;
-          }
-          #lowHumidity img {
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            right: 0; 
-            bottom: 0; 
-            margin: auto; 
-            width: 50%;
-            opacity: ${opacity}%; /* opacity set depending on the level of humidity, the less humidity the less transparent*/
-          }
-        `;
-        // create the style element
-        var styleElement = document.createElement('style');
-
-        // add style rules to the style element
-        styleElement.appendChild(document.createTextNode(css));
-
-        // attach the style element to the document head
-        document.getElementsByTagName('head')[0].appendChild(styleElement);
-      });
-    } else if (port.name == "light") {
-      port.onMessage.addListener(function(msg) {
-        currentPort = port;
-        var brightnessLevel = 6800 - msg.data; // 100% is normal level of brightness on 1836 ohms (average of readings in a day) + 700% is the highest level of brightness + highest resistance for bright light 6000 ohms
-        document.body.style.filter = "brightness(" + brightnessLevel + "%)";
-      })
-    } else if (port.name == "modal") {
+    if (port.name == "modal") {
       currentPort = port;
       // showing the modal when wanting to leave the page
       createModal();
+    } else if (port.name == "disruption") {
+      console.log("Disruption port created");
+      createModal();
+      port.onMessage.addListener(function(msg) {
+        currentPort = port;
+        //blockNonActiveTabs(msg.tab, true);
+        // specify our style rules in a string
+        var cssRules = `div :not(.disruption-modal, 
+          .disruption-modal > *, 
+          #disruptionCloseButton, 
+          #disruptionP,
+          #likertScaleDisruption, 
+          #disruptionQuestion, 
+          #disruptionLevel, 
+          #disruptionLevelLabel,
+          #disruptionImageUpload, 
+          #disruptionSubmitButton,
+          #disruptionError) {`;
+
+        if (msg.disruptionArray[0] == 1) {
+          // switch this to having: the drier the soil, themore words & images disappear, representing the cracks, so some information disappears
+          //replaceImage("soil-moisture.jpg");
+          //replaceText(document.body, msg.soilMoisture);
+          //console.log(nbTextNodes);
+          createSoilCracks(msg.soilMoisture);
+        } else {
+          console.log("No disruption in soil moisture");
+        }
+
+        if (msg.disruptionArray[1] == 1) {
+          var brightnessLevel = ((6700 - msg.light)/70)*2.089; // 100% is normal level of brightness on 3350 ohms (average of resistance), 200% is the highest level of brightness, 0 ohms resistance is around 6700 ohms (when it's dark)
+          cssRules += `filter: brightness(` + brightnessLevel + `%);`;
+          //document.body.style.filter = "brightness(" + brightnessLevel + "%)";
+        } else {
+          console.log("No disruption in light variation");
+        } 
+
+        if (msg.disruptionArray[2] == 1) {
+          var opacity = 100 - msg.humidity; // (min value of opacity for low humidity = 51%) + (max value of low humidity = 49%) - (value of the sensor read)
+          cssRules += `opacity: ` + opacity + `%;`;
+          //document.body.style.opacity = opacity + "%";
+        } else {
+          console.log("No disruption in humidity");
+        } 
+
+        if (msg.disruptionArray[3] == 1) {
+          // continue here
+          var backgroundColor = ((36 - msg.temperature)/0.5)*1.88; // 36 degrees highest temperature and -32 degrees is the lowest temperature -> 36 degrees = 0 & -32 degrees = 255
+          cssRules += `background-color: hsl(` + backgroundColor + `, 100%, 50%);`;
+          //document.body.style.backgroundColor = "hsl(" + backgroundColor + ", 100%, 50%)";
+        } else {
+          console.log("No disruption in temperature");
+        } 
+
+        cssRules += `}`;
+
+        // create the style element
+        var styleElement = document.createElement('style');
+
+        // add style rules to the style element
+        styleElement.appendChild(document.createTextNode(cssRules));
+ 
+        // attach the style element to the document head
+        document.getElementsByTagName('head')[0].appendChild(styleElement);
+      });
+      //setTimeout(createModal, 10000);
     }
+    return true;
 });
 
 // Get all the images from the page and replace them depending on the data received from the sensor
-function replaceImage(img) {
-  let filename = img; 
-  let imgs = document.getElementsByTagName('img'); 
-  for(imgElt of imgs) {  
-    let file = 'images/' + filename; 
-    let url = chrome.runtime.getURL(file); 
-    imgElt.src = url; 
-    console.log(url); 
-  } 
-}
+// function replaceImage(img) {
+//   let filename = img; 
+//   let imgs = document.getElementsByTagName('img'); 
+//   for(imgElt of imgs) {  
+//     let file = 'images/' + filename; 
+//     let url = chrome.runtime.getURL(file); 
+//     imgElt.src = url; 
+//     console.log(url); 
+//   } 
+// }
 
-// Get all the text from text nodes from the page and replace them depending on the data received from the sensor
-function replaceText(parentNode, data){
+// Get all the text from text nodes from the page and replace them with "cracks"
+function replaceText(parentNode, numTextNodes){
   for(var i = parentNode.childNodes.length-1; i >= 0; i--){
-      var node = parentNode.childNodes[i];
-      // Make sure that the text is not replaced in the modal
-      if (node.id != "disruptionCloseButton" && node.id != "disruptionP" && node.id != "disruptionSubmitButton" && node.id != "disruptionError") {
-        //  Make sure this is a text node
-        if(node.nodeType == Element.TEXT_NODE){
-          // Do this for the different type of data
-          node.textContent = "Soil has " + data + " moisture level";
-        } else if(node.nodeType == Element.ELEMENT_NODE){
-          //  Check this node's child nodes for text nodes to act on
-          replaceText(node, data);
+    var node = parentNode.childNodes[i];
+    // Make sure that the text is not replaced in the modal
+    if (node.id != "disruptionCloseButton" && 
+    node.id != "disruptionP" && 
+    node.id != "disruptionQuestion" && 
+    node.id != "disruptionLevelLabel" &&
+    node.id != "disruptionImageUpload" &&
+    node.id != "disruptionSubmitButton" && 
+    node.id != "disruptionError") {
+      //  Make sure this is a text node
+      if(node.nodeType == Element.TEXT_NODE){
+        nbTextNodes += 1;
+        for (var j = 0; j < nodeNb.length; j++){
+          if (nbTextNodes == nodeNb[j]) { // if the node nb is equal to any of the random numbers in the array then create the crack
+            node.textContent = "";
+            //console.log("Crack created at node " + node);
+          }
         }
+      } else if(node.nodeType == Element.ELEMENT_NODE){
+        //  Check this node's child nodes for text nodes to act on
+        replaceText(node, numTextNodes);
       }
+    }
   }
 };
+
+function getNbTextNodes(parentNode) {
+  for(var i = parentNode.childNodes.length-1; i >= 0; i--){
+    var node = parentNode.childNodes[i];
+    // Make sure that the modal text is not considered
+    if (//node.id != "disruptionModal" && 
+    //node.id != "disruptionModalContent" && 
+    node.id != "disruptionCloseButton" && 
+    node.id != "disruptionP" && 
+    node.id != "disruptionQuestion" && 
+    node.id != "disruptionLevelLabel" &&
+    node.id != "disruptionImageUpload" &&
+    node.id != "disruptionSubmitButton" && 
+    node.id != "disruptionError") {
+      //  Make sure this is a text node
+      if(node.nodeType == Element.TEXT_NODE){
+        nbTextNodes += 1;
+      } else if(node.nodeType == Element.ELEMENT_NODE){
+        //  Check this node's child nodes for text nodes to act on
+        getNbTextNodes(node);
+      }
+    } else {
+      console.log(node);
+    }
+  }
+}
+
+function createSoilCracks(soilMoisture) {
+  var soilMoistureDefficit = ((880 - soilMoisture)*100)/880; // how much % less moisture than max moisture value
+  // get the nb of text nodes
+  getNbTextNodes(document.body); 
+  var nbNodesDisappear = Math.round((nbTextNodes*soilMoistureDefficit)/100); // how many nodes need to disappear (to create the cracks)
+
+  // generate randomly the array of numbers of the nodes that will become the "cracks"
+  for (var i=nbNodesDisappear; i>0; i--) {
+    nodeNb.push(Math.round(Math.random() * (nbNodesDisappear - 1) + 1));
+  }
+
+  nbTextNodes = 0;
+  replaceText(document.body, nbTextNodes);
+  nodeNb = [];
+}
 
 // Depending on the data, maybe some parts won't be created
 function createModal() {
@@ -148,6 +197,7 @@ function createModal() {
   div1.className = "disruption-modal";
   div1.id = "disruptionModal";
   var div2 = document.createElement('div');
+  div2.id = "disruptionModalContent";
   div2.className = "disruption-modal-content";
   var closeButton = document.createElement('button'); // will appear after countdown ends
   closeButton.type = "button";
@@ -157,13 +207,13 @@ function createModal() {
   var p = document.createElement('p');
   p.id = "disruptionP";
   p.textContent = "";
-  var inputText = document.createElement('input');
-  inputText.type = "text";
-  inputText.placeholder = "Write down your thoughts";
-  inputText.id = "thoughtsText";
+  // var inputText = document.createElement('input');
+  // inputText.type = "text";
+  // inputText.placeholder = "Write down your thoughts";
+  // inputText.id = "thoughtsText";
   var inputImage = document.createElement("input");
   inputImage.type = "file";
-  inputImage.id = "imageUpload";
+  inputImage.id = "disruptionImageUpload";
   inputImage.name = "filename"; 
   var submitButton = document.createElement('button'); // will appear after countdown ends
   submitButton.type = "submit";
@@ -185,12 +235,13 @@ function createModal() {
   for (i = 0; i < 7; i++) {
     inputRadio[i] = document.createElement("input");
     inputRadio[i].type = "radio";
-    inputRadio[i].id = "level";
+    inputRadio[i].id = "disruptionLevel";
     inputRadio[i].name = "disruption-level";
     inputRadio[i].value = i+1;
 
     label[i] = document.createElement("label");
     label[i].htmlFor = "level";
+    label[i].id = "disruptionLevelLabel";
     label[i].textContent = i+1;
 
     div3.appendChild(inputRadio[i]);
@@ -260,7 +311,7 @@ function loadCSS(p)
       margin: 10px;
     }
     
-    #imageUpload {
+    #disruptionImageUpload {
       color: black;
       float: left;
       font-size: 15px;
@@ -334,21 +385,37 @@ function displayModal() {
   var errorP = document.getElementById("disruptionError");
 
   // Get the input text element
-  var inputText = document.getElementById("thoughtsText");
+  // var inputText = document.getElementById("thoughtsText");
+
+  // Get the radio button input
+  var radios = document.getElementsByName('disruption-level');
+  var radioChecked = false;
+  var radioValue = 0;
 
   // Get the upload image element
-  var inputImage = document.getElementById("imageUpload");
+  var inputImage = document.getElementById("disruptionImageUpload");
 
   // Get the button that will submit the info
   var submitButton = document.getElementById("disruptionSubmitButton");
   submitButton.onclick = function() { 
-    if (inputImage.value != "" && inputText.value != "") {
+    for (var i = 0, length = radios.length; i < length; i++) {
+      if (radios[i].checked) {
+        radioChecked = true;
+        radioValue = radios[i].value;
+        break;
+      }
+    }
+
+    if (inputImage.value != "" && radioChecked) {
       errorP.style.display = "none";
       console.log("Sending data to the database");
-      currentPort.postMessage({response: "Image and text replaced", thoughts: inputText.value, image: inputImage.value});
+      currentPort.postMessage({response: "Disruption occurred", disruptionLevel: radioValue, image: inputImage.value});
       currentPort.disconnect(); // disconnects from port
+      //blockNonActiveTabs(mag.tab, false);
       currentPort = null;
       modal.style.display = "none"; 
+      radioChecked = false;
+      radioValue = 0;
     } else {
       errorP.style.display = "block";
     }    
@@ -357,10 +424,17 @@ function displayModal() {
   // Get the button that will close the modal
   var closeButton = document.getElementById("disruptionCloseButton");
   closeButton.onclick = function() { 
-    if (inputImage.value != "" && inputText.value != "") {
+    for (var i = 0, length = radios.length; i < length; i++) {
+      if (radios[i].checked) {
+        radioChecked = true;
+        break;
+      }
+    }
+
+    if (radioChecked && inputImage.value != "") {
       errorP.style.display = "none";
       console.log("Closing modal"); // can't close until the fields are completed
-      modal.style.display = "none"; 
+      modal.style.display = "none";
     } else {
       errorP.style.display = "block";
     }
@@ -369,6 +443,81 @@ function displayModal() {
   modal.style.display = "block";
   console.log("Modal displayed");
 }
+
+// blocks all the other tabs while the disruption is not over (or unblocks them when it is over)
+// function blockNonActiveTabs(tabId, block) {
+//   chrome.windows.getAll({populate:true},function(windows){
+//     windows.forEach(function(window){
+//       window.tabs.forEach(function(tab){
+//         if (tab != "undefined") {
+//           if (tab.title != "Extensions" && tab.id != tabId && block) {
+//             document.body.style.opacity = 100;
+//             createBlockedModal();
+//           } else if (!block) {
+//             var modal = document.getElementById("blockedModal");
+//             modal.style.display = "none";
+//           }
+//         }
+//       });
+//     });
+//   });
+// }
+
+// function createBlockedModal() {
+//   var div1 = document.createElement('div');
+//   div1.className = "blocked-modal";
+//   div1.id = "blockedModal";
+//   var div2 = document.createElement('div');
+//   div2.className = "blocked-modal-content";
+//   var p = document.createElement('p');
+//   p.id = "blockedP";
+//   p.textContent = "Blocked until disruption finishes.";
+
+//   div1.appendChild(div2);
+//   div2.appendChild(p);
+
+//    // specify our style rules in a string
+//   var cssRules = `/* The Modal (background) */
+//   #blockedModal {
+//       display: none; /* Hidden by default */
+//       position: fixed; /* Stay in place */
+//       z-index: 1; /* Sit on top */
+//       left: 0;
+//       top: 0;
+//       width: 100%; /* Full width */
+//       height: 100%; /* Full height */
+//       overflow: auto; /* Enable scroll if needed */
+//       background-color: rgb(0,0,0); /* Fallback color */
+//       background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+//     }
+    
+//     /* Modal Content/Box */
+//     .blocked-modal-content {
+//       background-color: #fefefe;
+//       margin: 15% auto; /* 15% from the top and centered */
+//       padding: 20px;
+//       border: 1px solid #888;
+//       width: 80%; /* Could be more or less, depending on screen size */
+//       height: 40%;
+//     }
+
+//     #blockedP {
+//         color: black;
+//         text-align: center;
+//         font-size: x-large;
+//     }`;
+
+//   // create the style element
+//   var styleElement = document.createElement('style');
+
+//   // add style rules to the style element
+//   styleElement.appendChild(document.createTextNode(cssRules));
+
+//   // attach the style element to the document head
+//   document.getElementsByTagName('head')[0].appendChild(styleElement);
+
+//   div1.style.display = "block";
+// }
 
 // function closeModal() {
 //   // Get the modal

@@ -5,13 +5,7 @@ try{
 
   // Your web app's Firebase configuration
   var firebaseConfig = {
-    apiKey: "",
-    authDomain: "",
-    databaseURL: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: ""
+
   };
   // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
@@ -20,265 +14,223 @@ try{
   var dbRef = firebase.database().ref();
   var dbRefSnapshot = null;
   // For Soil moisture
-  //var dbRefSoil = firebase.database().ref("soil_moisture/data");
-  var dbRefSoilSnapshot = null;
-  var childAddedToSoil = false;
-  var lastSoilMoistureValue = null;
-  //var soilHasMoisture = false;
+  var lastSoilMoistureValue = 0;
   // For Humidity
-  var dbRefHumidity = firebase.database().ref("humidity/data");
-  var dbRefHumiditySnapshot = null;
-  var childAddedToHumidity = false;
-  var highHumidity = false;
+  var lastHumidityValue = 0;
   // For Light
-  var dbRefLight = firebase.database().ref("light/data");
-  var dbRefLightSnapshot = null;
-  var childAddedToLight = false;
+  var lastLightValue = 0;
   // For Temperature
-  var dbRefTemperature = firebase.database().ref("temperature/data");
-  var dbRefTemperatureSnapshot = null;
-  var childAddedToTemperature = false;
-  var highTemperature = false;
+  var lastTemperatureValue = 0;
 
-  let disruptionCase = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // 16 disruption cases, where disruptionCase[0] is when no disruption occurs (i.e. none of the sensors had significant changes to cause a disruption)
+  let disruptionCase = [0, 0, 0, 0]; // 4 disruption cases
+  let currentCase = 0;
 
-  //let firstCount = [0, 0, 0, 0]; // firstCount[0] = soil moisture, firstCount[1] = light, firstCount[2] = humidity,  firstCount[3] = temperature;
   let firstCount = 0;
 
   var disruption = false;
 
-  // each function will run once when it is initiated and the once more for every time a new child is added under the path
-  // dbRefSoil.on('child_added', function(snapshot_soil) {
-  //   firstCount[0]++;
-  //   dbRefSoilSnapshot = snapshot_soil;
-  //   if (firstCount[0] > 1) {
-  //     //childAddedToSoil = true;
-  //     firstCount[0] = 1; // so that the first time the function runs it's not considered as child added to soil
-  //     if ((snapshot_soil.val()["soil_moisture_value"] - lastSoilMoistureValue) >= 9) { // if there is a significant change
-  //       disruptionCase[1] = 1; // means that it's at least the first disruptive case
-  //       lastSoilMoistureValue = snapshot_soil.val()["soil_moisture_value"]; // current value becomes last soil moisture value for next comparison
-  //       // reloads the active tab
-  //       chrome.tabs.reload(function(){});
-  //     } else {
-  //       console.log("No significant change in soil moisture");
-  //     }
-  //   } else{
-  //     console.log("First time function run for dbRefSoil");
-  //   }
-  // });
+  var currentActiveTabID = 0; 
 
   dbRef.on('child_added', function(snapshot) {
     firstCount++;
     dbRefSnapshot = snapshot;
     if (firstCount > 1) {
       firstCount = 1; // so that the first time the function runs it's not considered as child added to database
-      if ((snapshot_soil.val()["soil_moisture_value"] - lastSoilMoistureValue) >= 9) { // if there is a significant change
-        disruptionCase[1] = 1; // means that it's at least the first disruptive case
-        lastSoilMoistureValue = snapshot_soil.val()["soil_moisture_value"]; // current value becomes last soil moisture value for next comparison
+      if (Math.abs(snapshot.val()["soil_moisture_value"] - lastSoilMoistureValue) >= 9) { // if there is a significant change
+        //console.log(snapshot.val()["soil_moisture_value"]);
+        //console.log(lastSoilMoistureValue);
+        disruptionCase[0] = 1; // means that it's at least the first disruptive case
+        lastSoilMoistureValue = snapshot.val()["soil_moisture_value"]; // current value becomes last soil moisture value for next comparison
         disruption = true;
       } 
-      // if () {
-      //   // for light
-      // } 
-      // if () {
-      //   // for humidity
-      // } 
-      // if () {
-      //   // for temperature
-      // }
+      if (Math.abs(snapshot.val()["light_value"] - lastLightValue) >= 70) {
+        disruptionCase[1] = 1; // means that it's at least the second disruptive case
+        lastLightValue = snapshot.val()["light_value"]; // current value becomes last light value for next comparison
+        disruption = true;
+      } 
+      if (Math.abs(snapshot.val()["humidity_value"] - lastHumidityValue) >= 1) {
+        disruptionCase[2] = 1; // means that it's at least the third disruptive case
+        lastHumidityValue = snapshot.val()["humidity_value"]; // current value becomes last humidity value for next comparison
+        disruption = true;
+      } 
+      if (Math.abs(snapshot.val()["temperature_value"] - lastTemperatureValue) >= 0.5) {
+        disruptionCase[3] = 1; // means that it's at least the fourth disruptive case
+        lastTemperatureValue = snapshot.val()["temperature_value"]; // current value becomes last temperature value for next comparison
+        disruption = true;
+      }
 
       // if there are significant changes, a disruption should occur, so page is reloaded to start that
       if (disruption) {
         // reloads the active tab
         //chrome.tabs.reload(function(){});
-        createDisruptionPort(tabID);
+        if (disruptionCase[0] == 1 && disruptionCase[1] == 1 && disruptionCase[2] == 1 && disruptionCase[3] == 1) { // this is case 15, soil moisture + light + humidity + temperature
+          currentCase = 15;
+        } else if (disruptionCase[0] == 1 && disruptionCase[2] == 1 && disruptionCase[3] == 1) { // this is case 14, soil moisture + humidity + temperature
+          currentCase = 14;
+        } else if (disruptionCase[1] == 1 && disruptionCase[2] == 1 && disruptionCase[3] == 1) { // this is case 13, light + humidity + temperature
+          currentCase = 13;
+        } else if (disruptionCase[0] == 1 && disruptionCase[1] == 1 && disruptionCase[3] == 1) { // this is case 12, soil moisture + light + temperature
+          currentCase = 12;
+        } else if (disruptionCase[0] == 1 && disruptionCase[1] == 1 && disruptionCase[2] == 1) { // this is case 11, soil moisture + light + humidity
+          currentCase = 11;
+        } else if (disruptionCase[2] == 1 && disruptionCase[3] == 1) { // this is case 10, humidity + temperature
+          currentCase = 10;
+        } else if (disruptionCase[1] == 1 && disruptionCase[3] == 1) { // this is case 9, light + temperature
+          currentCase = 9;
+        } else if (disruptionCase[1] == 1 && disruptionCase[2] == 1) { // this is case 8, light + humidity
+          currentCase = 8;
+        } else if (disruptionCase[0] == 1 && disruptionCase[3] == 1) { // this is case 7, soil moisture + temperature
+          currentCase = 7;
+        } else if (disruptionCase[0] == 1 && disruptionCase[2] == 1) { // this is case 6, soil moisture + humidity
+          currentCase = 6;
+        } else if (disruptionCase[0] == 1 && disruptionCase[1] == 1) { // this is case 5, soil moisture + light
+          currentCase = 5;
+        } else if (disruptionCase[3] == 1) { // this is case 4, temperature alone
+          currentCase = 4;
+        } else if (disruptionCase[2] == 1) { // this is case 3, humidity alone
+          currentCase = 3;
+        } else if (disruptionCase[1] == 1) { // this is case 2, light alone
+          currentCase = 2;
+        } else if (disruptionCase[0] == 1) { // this is case 1, soil moisture alone
+          currentCase = 1;
+        }
+        console.log("Current case is number " + currentCase);
+        // creates port for current tab, depending on the case
+        //createDisruptionPorts();
+        // create disruption port for the current and active tab
+        // chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+        //   // if there is an error with the reloading, reload again
+        //   if (tabs == "undefined") {
+        //     //chrome.tabs.reload(function(){});
+        //     console.log("Tab undefined");
+        //   } else if (tabs[0].title != "Extensions") { // so that no error shows when in the extension settings
+        //     var tabID = tabs[0].id;
+        //     console.log("Tab title: " + tabs[0].title);
+        //     createDisruptionPort(tabID);
+        //   }   
+        // })
+        // changes occur only to the current active tab on which the disruption is happening
+
+        // saves the disruption case number in the database
+        firebase.database().ref(dbRefSnapshot.key).update({
+          disruption_case: currentCase,
+        });
+
+        // if there is an active tab, reload the page to start the disruption
+        chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+          if (tabs == "undefined") {
+            //chrome.tabs.reload(tabs[0].id);
+            // if there is no active tab, then make no changes, just save the disruption case number an reinitialize variables
+            firebase.database().ref(snapshot.key).update({
+              //disruption_case: currentCase,
+              disruption_level: 0,
+              image: "disruption but no activity"
+            });
+            // reinitialize some variables
+            currentCase = 0;
+            disruptionCase = [0, 0, 0, 0];
+          } else {
+            currentActiveTabID = tabs[0].id;
+            chrome.tabs.reload(currentActiveTabID);
+          }
+        });
       } else {
         console.log("No significant changes");
+        // fill the remaining elements in the database
+        firebase.database().ref(snapshot.key).update({
+          disruption_case: currentCase, // which should be case number 0, as in no disruption
+          disruption_level: 0,
+          image: "no disruption"
+        });
+
+        // reinitialize some variables, actually no need to reinitialize anything, as no changes to the variables happened
+        //currentCase = 0;
+        //disruptionCase = [0, 0, 0, 0];
       }
+
+      // reinitialize some variables
+      disruption = false;
+      //currentCase = 0;
     } else {
       console.log("First time function run for dbRef");
     }
   })
 
-  // dbRefLight.on('child_added', function(snapshot_light) {
-  //   firstCount[1]++;
-  //   dbRefLightSnapshot = snapshot_light;
-  //   if (firstCount[1] > 1) {
-  //     childAddedToLight = true;
-  //     firstCount[1] = 1; // so that the first time the function runs it's not considered as child added to soil
-  //     // reloads the active tab
-  //     chrome.tabs.reload(function(){});
-  //   }
-  // });
-
-  // dbRefHumidity.on('child_added', function(snapshot_humidity) {
-  //   firstCount[2]++;
-  //   dbRefHumiditySnapshot = snapshot_humidity;
-  //   firebase.database().ref("humidity/boundary_value").once("value", function (snapshot) {
-  //     if (firstCount[2] > 1) {
-  //       childAddedToHumidity = true;
-  //       firstCount[2] = 1; // so that the first time the function runs it's not considered as child added to soil
-  //       if (dbRefHumiditySnapshot.val()["value"] >= snapshot.val()) {
-  //         console.log("High humidity");
-  //         highHumidity = true;
-  //       } else {
-  //         console.log("Low humidity");
-  //       }
-  //       // should only reload if the data has been given in the last x minutes or not, try first with no matter the time passed before the last change
-  //       // reloads the active tab
-  //       chrome.tabs.reload(function(){});
-  //     }
-  //   })
-  // });
-
-  // dbRefTemperature.on('child_added', function(snapshot) {
-  //     // to complete
-  // });
-
-  // do I need to reload page or I can just make changes straight away on the current page
   chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-    if (changeInfo.status == 'complete') {
+    if (changeInfo.status == 'complete' && currentCase != 0 && tabId == currentActiveTabID) { // check that this is not a different tab so that it doesn't make any changes
       chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
         // if there is an error with the reloading, reload again
         if (tabs == "undefined") {
-          chrome.tabs.reload(function(){});
+          chrome.tabs.reload(currentActiveTabID);
         } else if (changeInfo.status == 'complete' && tabs[0].title != "Extensions") { // so that no error shows when in the extension settings
           var tabID = tabs[0].id;
           console.log("Tab title: " + tabs[0].title);
-          //if (childAddedToSoil == true) {
-          if (disruptionCase[1] == 1) {
-            //childAddedToSoil = false; // so that no changes are done on the page if no new child was added
-            //console.log("Child Added to Soil");
-            console.log("Disruption from soil moisture, case 1.");
-            //createPortForSoil(tabID);
-          } // else if (childAddedToHumidity == true) {
-          //   childAddedToHumidity = false; // so that no changes are done on the page if no new child was added
-          //   console.log("Child Added to Humidity");
-          //   createPortForHumidity(tabID);
-          // } else if (childAddedToLight == true) {
-          //   childAddedToLight = false; // so that no changes are done on the page if no new child was added
-          //   console.log("Child Added to Light");
-          //   createPortForLight(tabID);
-          // }
-          else {
-            disruptionCase[0] = 1; // none of the sensors had significant changes, thus, no disruption occurs
-          }
-
           createDisruptionPort(tabID);
         }
       })
     }
   })
 
+  // creating a disruption port for the specific tab
   function createDisruptionPort(tabID) {
-    // there are disruptions, create port
-    if (disruptionCase[0] == 0) {
-      var port = chrome.tabs.connect(tabID, {name: "disruption"});
-    } else {
-      // create only one child added function
-    }
-  }
+    //console.log("Creating port for tab with id " + tabID);
 
-  function createPortForSoil(tabID) {
-    var port = chrome.tabs.connect(tabID, {name: "soil_has_moisture"});
-    port.postMessage({data: dbRefSoilSnapshot.val()["value"]});
-    port.onMessage.addListener(function(msg) {
-      console.log("Msg response: " + msg.response);
-    });
-    port.onDisconnect.addListener(function() {
-      console.log("Port disconnected :/");
-    })
-
-
-      var port = chrome.tabs.connect(tabID, {name: "soil_does_not_have_moisture"});
-      port.postMessage({data: dbRefSoilSnapshot.val()["value"]});
-      port.onMessage.addListener(function(msg) {
-        console.log("Msg response: " + msg.response);
-        firebase.database().ref("soil_moisture/data/" + dbRefSoilSnapshot.key).update({
-            notes: msg.thoughts,
-            image: msg.image
+    //chrome.runtime.sendMessage('ping', response => {
+      // if(chrome.runtime.lastError) {
+      //   console.log("Runtime error, trying again");
+      //   setTimeout(1000);
+      //   createDisruptionPort(tabID);
+      // } else {
+        //setTimeout(1000);
+        var port = chrome.tabs.connect(tabID, {name: "disruption"});
+        // sends the 4 array elements, to see which of the four sensors caused a disruption, and send the readings of the 4 sensors needed to create the disruption
+        port.postMessage({
+          disruptionArray: disruptionCase, 
+          soilMoisture: dbRefSnapshot.val()["soil_moisture_value"], 
+          light: dbRefSnapshot.val()["light_value"], 
+          humidity: dbRefSnapshot.val()["humidity_value"], 
+          temperature: dbRefSnapshot.val()["temperature_value"],
+          tab: tabID
+        }); 
+        port.onMessage.addListener(function(msg) {
+          console.log("Msg response: " + msg.response);
+          var d = new Date();
+          var currentTime = d.getTime();
+          firebase.database().ref(dbRefSnapshot.key).update({
+            //disruption_case: currentCase,
+            disruption_level: msg.disruptionLevel,
+            image: msg.image,
+            completedAt: currentTime
           });
-        console.log("Data updated in firebase");
-      });
-      port.onDisconnect.addListener(function() {
-        console.log("Port disconnected :/");
-      })
-    dbRefSoilSnapshot = null;
+          console.log("Data updated in firebase");
+        });
+        port.onDisconnect.addListener(function() {
+          console.log("Port disconnected for tab with id " + tabID);
+          console.log("currentActiveTabID, dbRefSnapshot and disruptionCase variables reset, resetting the page to normal");
+          currentActiveTabID = 0;
+          //currentCase = 0;
+          disruptionCase = [0, 0, 0, 0];
+          dbRefSnapshot = null;
+          chrome.tabs.reload(tabID);
+        })
+      //}
+    //})
   }
 
-  // function createPortForSoil(tabID) {
-  //   if (soilHasMoisture) {
-  //     soilHasMoisture = false;
-  //     var port = chrome.tabs.connect(tabID, {name: "soil_has_moisture"});
-  //     port.postMessage({data: dbRefSoilSnapshot.val()["value"]});
-  //     port.onMessage.addListener(function(msg) {
-  //       console.log("Msg response: " + msg.response);
+  // // for each tab in each window, a disruption port is created
+  // function createDisruptionPorts() {
+  //   chrome.windows.getAll({populate:true},function(windows){
+  //     windows.forEach(function(window){
+  //       window.tabs.forEach(function(tab){
+  //         if (tab != "undefined") {
+  //           if (tab.title != "Extensions") {
+  //             createDisruptionPort(tab.id);
+  //           }
+  //         }
+  //       });
   //     });
-  //     port.onDisconnect.addListener(function() {
-  //       console.log("Port disconnected :/");
-  //     })
-  //   } else {
-  //     var port = chrome.tabs.connect(tabID, {name: "soil_does_not_have_moisture"});
-  //     port.postMessage({data: dbRefSoilSnapshot.val()["value"]});
-  //     port.onMessage.addListener(function(msg) {
-  //       console.log("Msg response: " + msg.response);
-  //       firebase.database().ref("soil_moisture/data/" + dbRefSoilSnapshot.key).update({
-  //           notes: msg.thoughts,
-  //           image: msg.image
-  //         });
-  //       console.log("Data updated in firebase");
-  //     });
-  //     port.onDisconnect.addListener(function() {
-  //       console.log("Port disconnected :/");
-  //     })
-  //   }
-  //   dbRefSoilSnapshot = null;
+  //   });
   // }
-
-  function createPortForHumidity(tabID) {
-    if (highHumidity) {
-      highHumidity = false;
-      var port = chrome.tabs.connect(tabID, {name: "high_humidity"});
-      port.postMessage({data: dbRefHumiditySnapshot.val()["value"]});
-      port.onMessage.addListener(function(msg) {
-        console.log("Msg response: " + msg.response);
-      });
-      port.onDisconnect.addListener(function() {
-        console.log("Port disconnected :/");
-      })
-    } else {
-      var port = chrome.tabs.connect(tabID, {name: "low_humidity"});
-      port.postMessage({data: dbRefHumiditySnapshot.val()["value"]});
-      port.onMessage.addListener(function(msg) {
-        console.log("Msg response: " + msg.response);
-        firebase.database().ref("humidity/data/" + dbRefSoilSnapshot.key).update({
-            notes: msg.thoughts,
-            image: msg.image
-          });
-        console.log("Data updated in firebase");
-      });
-      port.onDisconnect.addListener(function() {
-        console.log("Port disconnected :/");
-      })
-    }
-    dbRefHumiditySnapshot = null;
-  }
-
-  function createPortForLight(tabID) {
-    var port = chrome.tabs.connect(tabID, {name: "light"});
-    port.postMessage({data: dbRefLightSnapshot.val()["value"]});
-    port.onMessage.addListener(function(msg) {
-      console.log("Msg response: " + msg.response);
-    });
-    port.onDisconnect.addListener(function() {
-      console.log("Port disconnected :/");
-    })
-    dbRefLightSnapshot = null;
-  }
-
-  function createPortForTemperature(tabID) {
-    // to complete
-  }
 
   // show modal when wanting to leave/close the tab
   chrome.tabs.onRemoved.addListener(function(tabId, changeInfo, tab) {
