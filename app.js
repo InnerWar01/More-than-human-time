@@ -33,14 +33,15 @@ chrome.runtime.onConnect.addListener(function(port) {
   //   }
   // }
 
-    if (port.name == "modal") {
-      currentPort = port;
-      // showing the modal when wanting to leave the page
-      createModal();
-    } else if (port.name == "disruption") {
-      console.log("Disruption port created");
+    // if (port.name == "modal") {
+    //   currentPort = port;
+    //   // showing the modal when wanting to leave the page
+    //   createModal();
+    // } else 
+    if (port.name == "disruption") {
       createModal();
       port.onMessage.addListener(function(msg) {
+        console.log("Disruption port created for tab " + msg.tab);
         currentPort = port;
         //blockNonActiveTabs(msg.tab, true);
         // specify our style rules in a string
@@ -440,8 +441,8 @@ function displayModal() {
     }
   };
 
-  modal.style.display = "block";
-  console.log("Modal displayed");
+  //modal.style.display = "block";
+  //console.log("Modal displayed");
 }
 
 // blocks all the other tabs while the disruption is not over (or unblocks them when it is over)
