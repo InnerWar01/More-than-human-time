@@ -86,7 +86,6 @@ try{
       dbRefSnapshot = snapshot;
       numDisruptions++;
       console.log("-----------Starting the disruption check for " + dbRefSnapshot.key + "-----------");
-      //firstCount = 1; // so that the first time the function runs it's not considered as child added to database
 
       console.log("Soil moisture value " + snapshot.val()["soil_moisture_value"] + " - last soil moisture value " + lastSoilMoistureValue + " = " + Math.abs(snapshot.val()["soil_moisture_value"] - lastSoilMoistureValue));
       if (Math.abs(snapshot.val()["soil_moisture_value"] - lastSoilMoistureValue) >= 9) { // if there is a significant change
@@ -123,8 +122,6 @@ try{
 
       // if there are significant changes, a disruption should occur, so page is reloaded to start that
       if (disruption) {
-        // reloads the active tab
-        //chrome.tabs.reload(function(){});
         if (disruptionCase[0] == 1 && disruptionCase[1] == 1 && disruptionCase[2] == 1 && disruptionCase[3] == 1) { // this is case 15, soil moisture + light + humidity + temperature
           currentCase = 15;
         } else if (disruptionCase[0] == 1 && disruptionCase[2] == 1 && disruptionCase[3] == 1) { // this is case 14, soil moisture + humidity + temperature
@@ -157,21 +154,6 @@ try{
           currentCase = 1;
         }
         console.log("Current case is number " + currentCase + " for " + dbRefSnapshot.key);
-        // creates port for current tab, depending on the case
-        //createDisruptionPorts();
-        // create disruption port for the current and active tab
-        // chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-        //   // if there is an error with the reloading, reload again
-        //   if (tabs == "undefined") {
-        //     //chrome.tabs.reload(function(){});
-        //     console.log("Tab undefined");
-        //   } else if (tabs[0].title != "Extensions") { // so that no error shows when in the extension settings
-        //     var tabID = tabs[0].id;
-        //     console.log("Tab title: " + tabs[0].title);
-        //     createDisruptionPort(tabID);
-        //   }   
-        // })
-        // changes occur only to the current active tab on which the disruption is happening
 
         // saves the disruption case number in the database
         firebase.database().ref("disruptions/" + dbRefSnapshot.key).update({
@@ -215,17 +197,6 @@ try{
         dbRefSnapshot = null;
       }
 
-      // if (currentActiveTabID == 0 && currentCase != 0) {
-      //   // if there is no active tab, then make no changes, just save the disruption case number an reinitialize variables
-      //   firebase.database().ref(snapshot.key).update({
-      //     //disruption_case: currentCase,
-      //     disruption_level: 0,
-      //     image: "disruption but no activity"
-      //   });
-      //   // reinitialize some variables
-      //   currentCase = 0;
-      //   disruptionCase = [0, 0, 0, 0];
-      // }
       // reinitialize some variables
       disruption = false;
     } else {
@@ -251,91 +222,49 @@ try{
 
   // creating a disruption port for the specific tab
   function createDisruptionPort(tabID) {
-    //console.log("Creating port for tab with id " + tabID);
+    //console.log("connecting port for the tab with id " + tabID);
+    port = chrome.tabs.connect(tabID, {name: "disruption"});
+    // sends the 4 array elements, to see which of the four sensors caused a disruption, and send the readings of the 4 sensors needed to create the disruption
+    port.postMessage({
+      disruptionArray: disruptionCase, 
+      soilMoisture: dbRefSnapshot.val()["soil_moisture_value"], 
+      light: dbRefSnapshot.val()["light_value"], 
+      humidity: dbRefSnapshot.val()["humidity_value"], 
+      temperature: dbRefSnapshot.val()["temperature_value"],
+      tab: tabID
+    }); 
 
-    //chrome.runtime.sendMessage('ping', response => {
-      // if(chrome.runtime.lastError) {
-      //   console.log("Runtime error, trying again");
-      //   setTimeout(1000);
-      //   createDisruptionPort(tabID);
-      // } else {
-        //setTimeout(1000);
-        //console.log("connecting port for the tab with id " + tabID);
-        port = chrome.tabs.connect(tabID, {name: "disruption"});
-        // sends the 4 array elements, to see which of the four sensors caused a disruption, and send the readings of the 4 sensors needed to create the disruption
-        port.postMessage({
-          disruptionArray: disruptionCase, 
-          soilMoisture: dbRefSnapshot.val()["soil_moisture_value"], 
-          light: dbRefSnapshot.val()["light_value"], 
-          humidity: dbRefSnapshot.val()["humidity_value"], 
-          temperature: dbRefSnapshot.val()["temperature_value"],
-          tab: tabID
-        }); 
-        port.onMessage.addListener(function(msg) {
-          console.log("Msg response: " + msg.response);
-          var d = new Date();
-          var currentTime = d.getTime();
-          firebase.database().ref("disruptions/" + dbRefSnapshot.key).update({
-            //disruption_case: currentCase,
-            disruption_level: msg.disruptionLevel,
-            image: msg.image,
-            completedAt: currentTime
-          });
-          console.log("Data updated in firebase");
-        });
-        port.onDisconnect.addListener(function() {
-          console.log("Port disconnected for tab with id " + tabID);
-          console.log("currentActiveTabID, dbRefSnapshot and disruptionCase variables reset, resetting the page to normal");
-          currentActiveTabID = 0;
-          currentCase = 0;
-          disruptionCase = [0, 0, 0, 0];
-          dbRefSnapshot = null;
-          port = null;
+    port.onMessage.addListener(function(msg) {
+      console.log("Msg response: " + msg.response);
+      var d = new Date();
+      var currentTime = d.getTime();
+      firebase.database().ref("disruptions/" + dbRefSnapshot.key).update({
+        //disruption_case: currentCase,
+        disruption_level: msg.disruptionLevel,
+        image: msg.image,
+        completedAt: currentTime
+      });
+      console.log("Data updated in firebase");
+    });
 
-          console.log(portOpen);
-          if (portOpen) {
-            // means that another child was added on top, don't reload
-            portOpen = false;
-          } else {
-            chrome.tabs.reload(tabID);
-          }
-        })
-      //}
-    //})
+    port.onDisconnect.addListener(function() {
+      console.log("Port disconnected for tab with id " + tabID);
+      console.log("currentActiveTabID, dbRefSnapshot and disruptionCase variables reset, resetting the page to normal");
+      currentActiveTabID = 0;
+      currentCase = 0;
+      disruptionCase = [0, 0, 0, 0];
+      dbRefSnapshot = null;
+      port = null;
+
+      console.log(portOpen);
+      if (portOpen) {
+        // means that another child was added on top, don't reload
+        portOpen = false;
+      } else {
+        chrome.tabs.reload(tabID);
+      }
+    });
   }
-
-  // // for each tab in each window, a disruption port is created
-  // function createDisruptionPorts() {
-  //   chrome.windows.getAll({populate:true},function(windows){
-  //     windows.forEach(function(window){
-  //       window.tabs.forEach(function(tab){
-  //         if (tab != "undefined") {
-  //           if (tab.title != "Extensions") {
-  //             createDisruptionPort(tab.id);
-  //           }
-  //         }
-  //       });
-  //     });
-  //   });
-  // }
-
-  // show modal when wanting to leave/close the tab
-  // chrome.tabs.onRemoved.addListener(function(tabId, changeInfo, tab) {
-  //   if (changeInfo.status != 'complete') {
-  //     createPortShowModal(tabID);
-  //   }
-  // })
-
-  // function createPortShowModal(tabID) {
-  //   var port = chrome.tabs.connect(tabID, {name: "modal"});
-  //   port.onMessage.addListener(function(msg) {
-  //     console.log("Msg response: " + msg.response);
-  //   });
-  //   port.onDisconnect.addListener(function() {
-  //     console.log("Port disconnected :/");
-  //   })
-  // }
-  
 } catch(e){
   // show errors
   console.log(e);

@@ -4,108 +4,67 @@ var nodeNb = [];
 
 // Port connection
 chrome.runtime.onConnect.addListener(function(port) {
-    // if (port.name == "soil_has_moisture") {
-    //   port.onMessage.addListener(function(msg) {
-    //     replaceImage("soil-moisture.jpg");
-    //     replaceText(document.body, msg.data);
-    //     currentPort = port;
-    //   });
-    // } else if (port.name == "soil_does_not_have_moisture") {
-    //   port.onMessage.addListener(function(msg) {
-    //     replaceImage("soil-without-moisture.jpg");
-    //     replaceText(document.body, msg.data);
-    //     currentPort = port;
-    //   });
-    // } 
+  if (port.name == "disruption") {
+    createModal();
+    port.onMessage.addListener(function(msg) {
+      console.log("Disruption port created for tab " + msg.tab);
+      currentPort = port;
+      // specify our style rules in a string
+      var cssRules = `div :not(.disruption-modal, 
+        .disruption-modal > *, 
+        #disruptionCloseButton, 
+        #disruptionP,
+        #likertScaleDisruption, 
+        #disruptionQuestion, 
+        #disruptionLevel, 
+        #disruptionLevelLabel,
+        #disruptionImageUpload, 
+        #disruptionSubmitButton,
+        #disruptionError) {`;
 
-    // document.addEventListener('visibilitychange', function() {
-    //   alert("You can't leave");
-    //   document.title = document.visibilityState;
-    //   console.log(document.visibilityState);
-    // });
+      if (msg.disruptionArray[0] == 1) {
+        // switch this to having: the drier the soil, the more words disappear, representing the cracks, so some information disappears
+        //console.log(nbTextNodes);
+        createSoilCracks(msg.soilMoisture);
+      } else {
+        console.log("No disruption in soil moisture");
+      }
 
-  // window.onblur = function() {
-  //   var flag = confirm("Please don't leave!  Click OK if you really want to leave.  I hope you click cancel and stay with me.");
-  //   if (flag) {
-  //       window.onblur = undefined;
-  //       alert("Ok you can leave now.  **sob**");
-  //       //The user is leaving.  You can do a little cleanup here if you need to.
-  //   }
-  // }
+      if (msg.disruptionArray[1] == 1) {
+        var brightnessLevel = ((6700 - msg.light)/70)*2.089; // 100% is normal level of brightness on 3350 ohms (average of resistance), 200% is the highest level of brightness, 0 ohms resistance is around 6700 ohms (when it's dark)
+        cssRules += `filter: brightness(` + brightnessLevel + `%);`;
+      } else {
+        console.log("No disruption in light variation");
+      } 
 
-    // if (port.name == "modal") {
-    //   currentPort = port;
-    //   // showing the modal when wanting to leave the page
-    //   createModal();
-    // } else 
-    if (port.name == "disruption") {
-      createModal();
-      port.onMessage.addListener(function(msg) {
-        console.log("Disruption port created for tab " + msg.tab);
-        currentPort = port;
-        //blockNonActiveTabs(msg.tab, true);
-        // specify our style rules in a string
-        var cssRules = `div :not(.disruption-modal, 
-          .disruption-modal > *, 
-          #disruptionCloseButton, 
-          #disruptionP,
-          #likertScaleDisruption, 
-          #disruptionQuestion, 
-          #disruptionLevel, 
-          #disruptionLevelLabel,
-          #disruptionImageUpload, 
-          #disruptionSubmitButton,
-          #disruptionError) {`;
+      if (msg.disruptionArray[2] == 1) {
+        var opacity = 100 - msg.humidity; // (min value of opacity for low humidity = 51%) + (max value of low humidity = 49%) - (value of the sensor read)
+        cssRules += `opacity: ` + opacity + `%;`;
+      } else {
+        console.log("No disruption in humidity");
+      } 
 
-        if (msg.disruptionArray[0] == 1) {
-          // switch this to having: the drier the soil, themore words & images disappear, representing the cracks, so some information disappears
-          //replaceImage("soil-moisture.jpg");
-          //replaceText(document.body, msg.soilMoisture);
-          //console.log(nbTextNodes);
-          createSoilCracks(msg.soilMoisture);
-        } else {
-          console.log("No disruption in soil moisture");
-        }
+      if (msg.disruptionArray[3] == 1) {
+        // continue here
+        var backgroundColor = ((36 - msg.temperature)/0.5)*1.88; // 36 degrees highest temperature and -32 degrees is the lowest temperature -> 36 degrees = 0 & -32 degrees = 255
+        cssRules += `background-color: hsl(` + backgroundColor + `, 100%, 50%);`;
+      } else {
+        console.log("No disruption in temperature");
+      } 
 
-        if (msg.disruptionArray[1] == 1) {
-          var brightnessLevel = ((6700 - msg.light)/70)*2.089; // 100% is normal level of brightness on 3350 ohms (average of resistance), 200% is the highest level of brightness, 0 ohms resistance is around 6700 ohms (when it's dark)
-          cssRules += `filter: brightness(` + brightnessLevel + `%);`;
-          //document.body.style.filter = "brightness(" + brightnessLevel + "%)";
-        } else {
-          console.log("No disruption in light variation");
-        } 
+      cssRules += `}`;
 
-        if (msg.disruptionArray[2] == 1) {
-          var opacity = 100 - msg.humidity; // (min value of opacity for low humidity = 51%) + (max value of low humidity = 49%) - (value of the sensor read)
-          cssRules += `opacity: ` + opacity + `%;`;
-          //document.body.style.opacity = opacity + "%";
-        } else {
-          console.log("No disruption in humidity");
-        } 
+      // create the style element
+      var styleElement = document.createElement('style');
 
-        if (msg.disruptionArray[3] == 1) {
-          // continue here
-          var backgroundColor = ((36 - msg.temperature)/0.5)*1.88; // 36 degrees highest temperature and -32 degrees is the lowest temperature -> 36 degrees = 0 & -32 degrees = 255
-          cssRules += `background-color: hsl(` + backgroundColor + `, 100%, 50%);`;
-          //document.body.style.backgroundColor = "hsl(" + backgroundColor + ", 100%, 50%)";
-        } else {
-          console.log("No disruption in temperature");
-        } 
+      // add style rules to the style element
+      styleElement.appendChild(document.createTextNode(cssRules));
 
-        cssRules += `}`;
-
-        // create the style element
-        var styleElement = document.createElement('style');
-
-        // add style rules to the style element
-        styleElement.appendChild(document.createTextNode(cssRules));
- 
-        // attach the style element to the document head
-        document.getElementsByTagName('head')[0].appendChild(styleElement);
-      });
-      //setTimeout(createModal, 10000);
-    }
-    return true;
+      // attach the style element to the document head
+      document.getElementsByTagName('head')[0].appendChild(styleElement);
+    });
+  }
+  return true;
 });
 
 // Get all the images from the page and replace them depending on the data received from the sensor
@@ -208,10 +167,6 @@ function createModal() {
   var p = document.createElement('p');
   p.id = "disruptionP";
   p.textContent = "";
-  // var inputText = document.createElement('input');
-  // inputText.type = "text";
-  // inputText.placeholder = "Write down your thoughts";
-  // inputText.id = "thoughtsText";
   var inputImage = document.createElement("input");
   inputImage.type = "file";
   inputImage.id = "disruptionImageUpload";
@@ -376,12 +331,6 @@ function displayModal() {
   // Get the modal
   var modal = document.getElementById("disruptionModal");
 
-  // Get the <span> element that closes the modal
-  var span = document.getElementsByClassName("close")[0];
-
-  // Get the p that display the countdown
-  var p = document.getElementById("countdownP");
-
   // Get the error paragraph in case notes and image was not submitted
   var errorP = document.getElementById("disruptionError");
 
@@ -440,148 +389,4 @@ function displayModal() {
       errorP.style.display = "block";
     }
   };
-
-  //modal.style.display = "block";
-  //console.log("Modal displayed");
 }
-
-// blocks all the other tabs while the disruption is not over (or unblocks them when it is over)
-// function blockNonActiveTabs(tabId, block) {
-//   chrome.windows.getAll({populate:true},function(windows){
-//     windows.forEach(function(window){
-//       window.tabs.forEach(function(tab){
-//         if (tab != "undefined") {
-//           if (tab.title != "Extensions" && tab.id != tabId && block) {
-//             document.body.style.opacity = 100;
-//             createBlockedModal();
-//           } else if (!block) {
-//             var modal = document.getElementById("blockedModal");
-//             modal.style.display = "none";
-//           }
-//         }
-//       });
-//     });
-//   });
-// }
-
-// function createBlockedModal() {
-//   var div1 = document.createElement('div');
-//   div1.className = "blocked-modal";
-//   div1.id = "blockedModal";
-//   var div2 = document.createElement('div');
-//   div2.className = "blocked-modal-content";
-//   var p = document.createElement('p');
-//   p.id = "blockedP";
-//   p.textContent = "Blocked until disruption finishes.";
-
-//   div1.appendChild(div2);
-//   div2.appendChild(p);
-
-//    // specify our style rules in a string
-//   var cssRules = `/* The Modal (background) */
-//   #blockedModal {
-//       display: none; /* Hidden by default */
-//       position: fixed; /* Stay in place */
-//       z-index: 1; /* Sit on top */
-//       left: 0;
-//       top: 0;
-//       width: 100%; /* Full width */
-//       height: 100%; /* Full height */
-//       overflow: auto; /* Enable scroll if needed */
-//       background-color: rgb(0,0,0); /* Fallback color */
-//       background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
-//     }
-    
-//     /* Modal Content/Box */
-//     .blocked-modal-content {
-//       background-color: #fefefe;
-//       margin: 15% auto; /* 15% from the top and centered */
-//       padding: 20px;
-//       border: 1px solid #888;
-//       width: 80%; /* Could be more or less, depending on screen size */
-//       height: 40%;
-//     }
-
-//     #blockedP {
-//         color: black;
-//         text-align: center;
-//         font-size: x-large;
-//     }`;
-
-//   // create the style element
-//   var styleElement = document.createElement('style');
-
-//   // add style rules to the style element
-//   styleElement.appendChild(document.createTextNode(cssRules));
-
-//   // attach the style element to the document head
-//   document.getElementsByTagName('head')[0].appendChild(styleElement);
-
-//   div1.style.display = "block";
-// }
-
-// function closeModal() {
-//   // Get the modal
-//   var modal = document.getElementById("disruptionModal");
-//   console.log("Closing modal"); // can't close until the fields are completed
-//   modal.style.display = "none";
-// }
-
-// chrome.runtime.sendMessage({command: "fetch"}, (response) => {
-//     showData(response.data);
-// });
-
-// Sending messages from Content Script
-// const msg = 'Hello from content Script ⚡'
-// chrome.runtime.sendMessage({ message: msg }, function(response) {
-//     console.log(response);
-// });
-
-// chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-//     console.log(request);
-//     console.log(sender.tab ?
-//                 "from a content script:" + sender.tab.url :
-//                 "from the extension");
-//     if (request.greeting == "hello")
-//     sendResponse({farewell: "goodbye"});
-//     return true;
-// });
-
-// console.log("Image tags " + document.getElementsByTagName("img"));
-// document.getElementsByTagName("img")[0].src = "images/soil-moisture.jpg"
-
-    //   console.log("msg command " + msg.command);
-  
-    //   if (msg.command == "post"){
-    //     console.log("process msg post", msg, sender, resp);
-    //     db.collection("cities").doc("test-doc").set({
-    //         data: msg.data
-    //     })
-    //     .then(function() {
-    //       console.log("success", result);
-    //     })
-    //     .catch(function(error) {
-    //       // Error, getting document error
-    //       resp({type: "result", status: "error", data: error, request: msg}); 
-    //     });
-    //   }
-  
-    //   if (msg.command == "fetch"){
-    //     console.log("process msg fetch", msg, sender, resp);
-    //     db.ref('/soil-moisture/').once('value').then(function(snapshot){
-    //       resp({type: "result", status: "success", data: snapshot.val(), request: msg}); 
-    //     });
-    //   }
-  
-    //   // if the message says disrupt then reload page and show the modal
-  
-    //   return true;
-
-// chrome.runtime.sendMessage({command: "post", data:"Test Data"}, (response) => {
-//     showData(response.data);
-// });
-
-// var showData = function(data) {
-//     dataDB = data;
-//     console.log('From Extension--', dataDB);
-// }
