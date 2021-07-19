@@ -5,7 +5,13 @@ try{
 
   // Your web app's Firebase configuration
   var firebaseConfig = {
-
+    apiKey: "AIzaSyDxf3gaGut37gQcPWOE3BaR6to9470LJng",
+    authDomain: "time-posthuman.firebaseapp.com",
+    databaseURL: "https://time-posthuman-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "time-posthuman",
+    storageBucket: "time-posthuman.appspot.com",
+    messagingSenderId: "850641588367",
+    appId: "1:850641588367:web:bb2de786c11a470f73e0fa"
   };
   // Initialize Firebase
   firebase.initializeApp(firebaseConfig);

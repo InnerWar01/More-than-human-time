@@ -9,18 +9,6 @@ chrome.runtime.onConnect.addListener(function(port) {
     port.onMessage.addListener(function(msg) {
       console.log("Disruption port created for tab " + msg.tab);
       currentPort = port;
-      // specify our style rules in a string
-      var cssRules = `div :not(.disruption-modal, 
-        .disruption-modal > *, 
-        #disruptionCloseButton, 
-        #disruptionP,
-        #likertScaleDisruption, 
-        #disruptionQuestion, 
-        #disruptionLevel, 
-        #disruptionLevelLabel,
-        #disruptionImageUpload, 
-        #disruptionSubmitButton,
-        #disruptionError) {`;
 
       if (msg.disruptionArray[0] == 1) {
         // switch this to having: the drier the soil, the more words disappear, representing the cracks, so some information disappears
@@ -32,14 +20,14 @@ chrome.runtime.onConnect.addListener(function(port) {
 
       if (msg.disruptionArray[1] == 1) {
         var brightnessLevel = ((6700 - msg.light)/70)*2.089; // 100% is normal level of brightness on 3350 ohms (average of resistance), 200% is the highest level of brightness, 0 ohms resistance is around 6700 ohms (when it's dark)
-        cssRules += `filter: brightness(` + brightnessLevel + `%);`;
+        document.body.style.filter = "brightness(" + brightnessLevel + "%)";
       } else {
         console.log("No disruption in light variation");
       } 
 
       if (msg.disruptionArray[2] == 1) {
         var opacity = 100 - msg.humidity; // (min value of opacity for low humidity = 51%) + (max value of low humidity = 49%) - (value of the sensor read)
-        cssRules += `opacity: ` + opacity + `%;`;
+        document.body.style.opacity = opacity + "%";
       } else {
         console.log("No disruption in humidity");
       } 
@@ -47,21 +35,10 @@ chrome.runtime.onConnect.addListener(function(port) {
       if (msg.disruptionArray[3] == 1) {
         // continue here
         var backgroundColor = ((36 - msg.temperature)/0.5)*1.88; // 36 degrees highest temperature and -32 degrees is the lowest temperature -> 36 degrees = 0 & -32 degrees = 255
-        cssRules += `background-color: hsl(` + backgroundColor + `, 100%, 50%);`;
+        document.body.style.backgroundColor = "hsl(" + backgroundColor + ", 100%, 50%)";
       } else {
         console.log("No disruption in temperature");
       } 
-
-      cssRules += `}`;
-
-      // create the style element
-      var styleElement = document.createElement('style');
-
-      // add style rules to the style element
-      styleElement.appendChild(document.createTextNode(cssRules));
-
-      // attach the style element to the document head
-      document.getElementsByTagName('head')[0].appendChild(styleElement);
     });
   }
   return true;

@@ -16,6 +16,10 @@ showModal.addEventListener("click", async () => {
 function showDisruptionModal() {
     if (document.getElementById("disruptionModal")) {
         let modal = document.getElementById("disruptionModal");
+        // removing all the changes done to the body page
+        document.body.style.filter = "";
+        document.body.style.opacity = "";
+        document.body.style.backgroundColor = "";
         modal.style.display = "block";
     }
 }
